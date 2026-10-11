@@ -1,0 +1,18 @@
+# Python 3.13, CPU only. Install: python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
+stable-worldmodel==0.1.1
+stable-pretraining==0.1.8
+torch==2.14.1
+torchvision==0.29.1
+# the LeWM checkpoints use the transformers 4.x ViT layer names; 5.x cannot load them
+transformers>=4.50,<5
+datasets<5
+hydra-core
+pygame
+pymunk
+shapely
+opencv-python-headless
+h5py
+hdf5plugin
+imageio[ffmpeg]
+scikit-learn
+matplotlib
