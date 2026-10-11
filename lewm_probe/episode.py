@@ -56,13 +56,30 @@ def expert_goal(world, seed, steps=25):
     return world.infos['state'][0, 0].copy()
 
 
-def run_episode(model, world, policy, recorder, seed, max_plans=4, goal_pos=None):
+def dataset_start_goals(n, seed=42, goal_offset=25):
+    """(start, goal) agent positions sampled as in the upstream eval: two frames of one
+    dataset episode, goal_offset steps apart. Dataset frames equal env renders pixel for pixel."""
+    import h5py
+
+    with h5py.File(C.ROOT / '.stable-wm' / 'datasets' / 'tworoom.h5', 'r') as f:
+        ep_len, ep_offset = f['ep_len'][:], f['ep_offset'][:]
+        rng = np.random.default_rng(seed)
+        eps = rng.choice(np.nonzero(ep_len > goal_offset + 1)[0], size=n, replace=False)
+        rows = np.sort(ep_offset[eps] + rng.integers(0, ep_len[eps] - goal_offset - 1))
+        return [(f['proprio'][r], f['proprio'][r + goal_offset]) for r in rows]
+
+
+def run_episode(model, world, policy, recorder, seed, max_plans=4, goal_pos=None, start_pos=None):
     """Plan, execute the whole plan open-loop, replan; stop at the goal or after max_plans.
 
-    goal_pos overrides the env's randomly sampled target.
+    start_pos and goal_pos override the env's randomly sampled agent and target positions.
     """
     world.reset(seed=seed)
     env = world.envs.envs[0].unwrapped
+    if start_pos is not None:
+        env._set_state(start_pos)
+        world.infos['pixels'] = env.render()[None, None]
+        world.infos['state'] = np.asarray(start_pos, dtype=np.float32)[None, None]
     if goal_pos is not None:
         env._set_goal_state(goal_pos)
         world.infos['goal_state'] = np.asarray(goal_pos, dtype=np.float32)[None, None]

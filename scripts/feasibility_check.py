@@ -5,6 +5,7 @@ Writes outputs/feasibility/.
 """
 
 import argparse
+import json
 import sys
 import time
 from pathlib import Path
@@ -20,14 +21,12 @@ import torch
 from matplotlib.patches import Rectangle
 
 from lewm_probe import common as C
-from lewm_probe.episode import expert_goal, run_episode
+from lewm_probe.episode import dataset_start_goals, expert_goal, run_episode
 
 OUT = C.ROOT / 'outputs' / 'feasibility'
 
-# Placeholder until the training dataset's action statistics are available: the expert
-# policy emits unit-vector directions, whose per-axis std over uniform headings is 1/sqrt(2).
-APPROX_ACTION_MEAN = [0.002, -0.055]
-APPROX_ACTION_STD = [0.884, 0.887]
+# written by scripts/upstream_eval.py from the training dataset's action column
+ACTION_STATS = json.loads((C.ROOT / 'lewm_probe' / 'action_stats.json').read_text())
 
 
 def draw_room(ax, wall):
@@ -66,8 +65,9 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--seed', type=int, default=0)
     ap.add_argument('--episodes', type=int, default=1)
-    ap.add_argument('--goal', choices=['expert25', 'random'], default='expert25',
-                    help='expert25: goal is 25 expert steps from the start (upstream eval protocol); '
+    ap.add_argument('--goal', choices=['dataset', 'expert25', 'random'], default='dataset',
+                    help='dataset: start and goal are dataset frames 25 steps apart (upstream eval protocol); '
+                         'expert25: goal is 25 noise-free expert steps from a random start; '
                          'random: the env\'s own random target, usually beyond one planning horizon')
     args = ap.parse_args()
     OUT.mkdir(parents=True, exist_ok=True)
@@ -84,18 +84,24 @@ def main():
     print(f'[2] forward hooks registered on {len(layers)} modules: {", ".join(layers)}')
 
     world = C.make_world()
-    policy = C.make_policy(model, C.action_scaler(APPROX_ACTION_MEAN, APPROX_ACTION_STD), seed=args.seed)
+    policy = C.make_policy(model, C.action_scaler(ACTION_STATS['mean'], ACTION_STATS['std']), seed=args.seed)
     policy.set_env(world.envs)
 
+    pairs = dataset_start_goals(args.episodes, seed=args.seed) if args.goal == 'dataset' else None
     episodes = []
     for i in range(args.episodes):
         seed = args.seed + i
-        goal_pos = expert_goal(world, seed) if args.goal == 'expert25' else None
+        start_pos = goal_pos = None
+        if args.goal == 'dataset':
+            start_pos, goal_pos = pairs[i]
+        elif args.goal == 'expert25':
+            goal_pos = expert_goal(world, seed)
         # upstream eval_budget is 50 env steps = 2 plans
-        ep = run_episode(model, world, policy, recorder, seed=seed, max_plans=2, goal_pos=goal_pos)
+        ep = run_episode(model, world, policy, recorder, seed=seed, max_plans=2,
+                         goal_pos=goal_pos, start_pos=start_pos)
         episodes.append(ep)
         print(f'    episode seed={ep["seed"]}: start={ep["start"].round(1)} goal={ep["goal_pos"].round(1)} '
-              f'steps={len(ep["positions"]) - 1} plans={len(ep["plans"])} success={ep["success"]} '
+              f'dist={np.linalg.norm(ep["start"] - ep["goal_pos"]):.0f}px steps={len(ep["positions"]) - 1} plans={len(ep["plans"])} success={ep["success"]} '
               f'final_dist={np.linalg.norm(ep["positions"][-1] - ep["goal_pos"]):.1f}px')
 
     times = np.concatenate([ep['solve_times'] for ep in episodes])
