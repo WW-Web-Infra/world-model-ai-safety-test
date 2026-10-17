@@ -86,9 +86,13 @@ def predictor_layers(model):
 
 
 class ActivationRecorder:
-    """Forward hooks that keep every output of the hooked modules."""
+    """Forward hooks that keep every output of the hooked modules while `active` is True.
+
+    Off by default so the 300 x 30 CEM candidate evaluations are not recorded.
+    """
 
     def __init__(self, modules):
+        self.active = False
         self.records = {name: [] for name in modules}
         self._handles = [
             mod.register_forward_hook(self._hook(name)) for name, mod in modules.items()
@@ -96,7 +100,8 @@ class ActivationRecorder:
 
     def _hook(self, name):
         def fn(_module, _inputs, output):
-            self.records[name].append(output.detach().cpu())
+            if self.active:
+                self.records[name].append(output.detach().cpu())
 
         return fn
 

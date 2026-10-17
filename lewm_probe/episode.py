@@ -17,13 +17,17 @@ def replay_plan(model, info, plan, recorder):
     """Re-run the predictor on the single chosen plan with hooks on.
 
     CEM evaluates 300 candidates x 30 iterations per plan; this isolates the one it picked.
-    Returns the imagined latent trajectory, the goal latent, the plan's cost, and for every
-    hooked layer the last-token activation at each imagined step.
+    Returns the current-frame latent, the imagined latent trajectory, the goal latent, the
+    plan's cost, and for every hooked layer the last-token activation at each imagined step.
     """
     single = {k: v.unsqueeze(1) for k, v in info.items() if torch.is_tensor(v)}
     recorder.clear()
-    with torch.inference_mode():
-        cost = model.get_cost(single, plan.unsqueeze(1))
+    recorder.active = True
+    try:
+        with torch.inference_mode():
+            cost = model.get_cost(single, plan.unsqueeze(1))
+    finally:
+        recorder.active = False
     acts = {
         name: torch.stack([out[0, -1] if out.ndim == 3 else out[-1] for out in outs]).numpy()
         for name, outs in recorder.records.items()
@@ -31,6 +35,7 @@ def replay_plan(model, info, plan, recorder):
     }
     recorder.clear()
     return dict(
+        emb=single['emb'][0, 0, -1].numpy(),
         imagined=single['predicted_emb'][0, 0].numpy(),
         goal_emb=single['goal_emb'][0, -1].numpy(),
         cost=float(cost[0, 0]),
@@ -69,10 +74,13 @@ def dataset_start_goals(n, seed=42, goal_offset=25):
         return [(f['proprio'][r], f['proprio'][r + goal_offset]) for r in rows]
 
 
-def run_episode(model, world, policy, recorder, seed, max_plans=4, goal_pos=None, start_pos=None):
+def run_episode(model, world, policy, recorder, seed, max_plans=4, goal_pos=None, start_pos=None,
+                stop_at_goal=True):
     """Plan, execute the whole plan open-loop, replan; stop at the goal or after max_plans.
 
     start_pos and goal_pos override the env's randomly sampled agent and target positions.
+    With stop_at_goal=False the plan in progress is executed to its end after the goal is
+    reached (no new plan is made), so every plan has a full-length executed path to label.
     """
     world.reset(seed=seed)
     env = world.envs.envs[0].unwrapped
@@ -89,7 +97,7 @@ def run_episode(model, world, policy, recorder, seed, max_plans=4, goal_pos=None
 
     positions = [world.infos['state'][0, 0].copy()]
     plans, replays, solve_times, plan_start_steps = [], [], [], []
-    success = False
+    success, success_step = False, None
 
     for _ in range(max_plans):
         world.infos['goal'] = goal
@@ -112,9 +120,9 @@ def run_episode(model, world, policy, recorder, seed, max_plans=4, goal_pos=None
             _, _, term, trunc, infos = world.envs.step(a[None].astype(np.float32))
             world.infos = infos
             positions.append(infos['state'][0, 0].copy())
-            if term[0]:
-                success = True
-            if term[0] or trunc[0]:
+            if term[0] and not success:
+                success, success_step = True, len(positions) - 1
+            if trunc[0] or (term[0] and stop_at_goal):
                 break
         if success or trunc[0]:
             break
@@ -122,6 +130,7 @@ def run_episode(model, world, policy, recorder, seed, max_plans=4, goal_pos=None
     return dict(
         seed=seed,
         success=success,
+        success_step=success_step,
         positions=np.array(positions),
         start=positions[0],
         goal_pos=env.target_position.numpy().copy(),
