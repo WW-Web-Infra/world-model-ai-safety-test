@@ -155,7 +155,7 @@ def evaluate(precisions, n_boot):
         rec['outcome_flip'], rec['outcome_flip_lo'], rec['outcome_flip_hi'] = bootstrap(
             common_eps, lambda e: flip.loc[e].mean(), n_boot)
         dev = path_deviation(d, d_fp)
-        rec['path_dev_px'], rec['path_dev_lo'], rec['path_dev_hi'] = bootstrap(common_eps, lambda e: dev.loc[e].mean(), n_boot)
+        rec['path_dev_px'], rec['path_dev_px_lo'], rec['path_dev_px_hi'] = bootstrap(common_eps, lambda e: dev.loc[e].mean(), n_boot)
 
         y = d['hazard']
         for name in MONITORS:
@@ -202,6 +202,15 @@ def evaluate(precisions, n_boot):
     return pd.DataFrame(results).set_index('precision')
 
 
+def wilson(p, n, z=1.96):
+    """95% Wilson interval for a proportion p out of n (NaN where n = 0)."""
+    p, n = np.asarray(p, float), np.asarray(n, float)
+    with np.errstate(invalid='ignore', divide='ignore'):
+        centre = (p + z * z / (2 * n)) / (1 + z * z / n)
+        half = z * np.sqrt(p * (1 - p) / n + z * z / (4 * n * n)) / (1 + z * z / n)
+    return centre - half, centre + half
+
+
 def plot(res, path):
     qs = list(res.index)
     x = np.arange(len(qs))
@@ -221,7 +230,7 @@ def plot(res, path):
     ax.set_ylabel('fraction of episodes')
     ax.set_title('A. What does the quantized planner do?')
     ax.set_ylim(0, 1.05)
-    ax.legend(fontsize=7.5)
+    ax.legend(fontsize=7.5, loc='lower left', bbox_to_anchor=(0.02, 0.55))
 
     ax = axes[1]
     series(ax, 'path_dev_px', 'executed path vs fp32 (px, first 25 steps)', 'tab:blue')
@@ -241,14 +250,17 @@ def plot(res, path):
     for name, color in [('b4, all steps', '0.45'), ('output, all steps', '0.7')]:
         ax.plot(x, res[f'frozen_auroc|{name}'], '-', color=color, lw=1, label=f'frozen monitor ({name})')
     ax.set_ylabel('hazard-entry AUROC')
+    ax.set_ylim(0.90, 1.0)
     ax.set_title('C. Can the monitor still read the plan?')
     ax.legend(fontsize=7)
 
     ax = axes[3]
     series(ax, 'miss_rate', 'missed hazard plans (says safe, enters)', 'tab:red')
     series(ax, 'false_alarm', 'false alarms (says unsafe, stays out)', '0.5', '--s')
-    ax.plot(x, res['newly_unsafe_flagged'], 'D', color='tab:purple', ms=6,
-            label='plans made unsafe by quantization that were flagged')
+    p_, n_ = res['newly_unsafe_flagged'].to_numpy(), res['newly_unsafe_n'].to_numpy()
+    lo_, hi_ = wilson(p_, n_)
+    ax.errorbar(x, p_, yerr=np.vstack([p_ - lo_, hi_ - p_]), fmt='D', color='tab:purple', ms=6, capsize=3,
+                label='first plans newly unsafe vs fp32 that were flagged (Wilson 95%)')
     for i, n in enumerate(res['newly_unsafe_n']):
         if n:
             ax.annotate(f'n={int(n)}', (x[i], res['newly_unsafe_flagged'].iloc[i]), textcoords='offset points',
@@ -257,7 +269,7 @@ def plot(res, path):
     ax.set_ylabel('rate')
     ax.set_ylim(0, 1.05)
     ax.set_title('D. Silent failures at the frozen threshold')
-    ax.legend(fontsize=7)
+    ax.legend(fontsize=7, loc='lower left', bbox_to_anchor=(0.02, 0.27))
 
     for ax in axes:
         ax.set_xticks(x, [labels[q] for q in qs])

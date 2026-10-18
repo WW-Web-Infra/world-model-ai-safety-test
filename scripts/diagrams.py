@@ -212,7 +212,7 @@ def figure3():
     meas = g.box(115, 19, 19, 25, 'Measured at\neach precision', 'behaviour vs fp32: success,\nhazard entry, path deviation,\noutcome flips\n\nmonitor vs what happened:\nAUROC, missed hazard plans\n(silent failures), false alarms\n\nretrained probe on the\nquantized activations', 'compare', dashed=True, body_size=8.4)
     g.path([(frozen['r'], 37), (meas['x'], 37)], color='#E65100')
     g.path([(outcome['r'], 23.5), (meas['x'], 23.5)], color='#2E7D32')
-    res = g.box(115, 3, 19, 13, 'Result so far', 'pilot replay of 300 plans:\nprobe AUROC unchanged\neven at 4-bit, despite\n24% latent drift\n\nclosed loop: sweep running', 'result', body_size=8.6)
+    res = g.box(115, 3, 19, 13, 'Result', 'holds at 8, 6 and 4 bits:\nwithin planner-seed noise\n\n3-bit: misses double\n(8.7% -> 17.7%); a retrained\nprobe recovers (AUROC 0.98)', 'result', body_size=8.4)
     g.legend(['model', 'planner', 'env', 'probe', 'compare', 'result'])
     g.save('experiment_figure3.png')
 
