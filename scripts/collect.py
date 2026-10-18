@@ -6,7 +6,9 @@ their id, so the same ids can be rerun at other precisions in Week 3 and compare
 Usage:
   .venv/bin/python scripts/collect.py --name test --episodes 50
   .venv/bin/python scripts/collect.py --name full --first 0 --episodes 1000   # shard: --first 1000 ...
-Writes data/<name>/episodes_<first>-<last>.npz, checkpointed every 25 episodes.
+  .venv/bin/python scripts/collect.py --name int8 --precision int8 --first 0 --episodes 1000
+Writes data/<name>/episodes_<first>-<last>.npz, checkpointed every 25 episodes; rerunning the same
+command after an interruption resumes from the last checkpoint.
 """
 
 import argparse
@@ -23,6 +25,7 @@ import torch
 from lewm_probe import common as C
 from lewm_probe.episode import run_episode
 from lewm_probe.hazard import Zone, pairs_near_zone
+from lewm_probe.quantize import PRECISIONS, quantize
 
 ACTION_STATS = json.loads((C.ROOT / 'lewm_probe' / 'action_stats.json').read_text())
 
@@ -64,6 +67,30 @@ def plan_rows(ep, ep_id):
     return rows
 
 
+MATCH_ARGS = ('name', 'first', 'episodes', 'seed', 'precision', 'cem_seed_offset')
+
+
+def load_checkpoint(path, args):
+    """Rows and episodes already saved by an interrupted run with the same arguments.
+
+    Episodes are independent (each reseeds the env and the planner from its id), so continuing
+    after the last checkpoint gives the same data as an uninterrupted run.
+    """
+    if not path.exists():
+        return [], []
+    d = dict(np.load(path))
+    saved = json.loads(str(d['meta/args']))
+    mismatch = [k for k in MATCH_ARGS if saved.get(k, 0 if k == 'cem_seed_offset' else None) != getattr(args, k)]
+    if mismatch:
+        sys.exit(f'{path} was collected with different {mismatch}; move it away or use another --name')
+    per_plan = [k for k in d if not k.startswith(('ep/', 'meta/'))]
+    rows = [{k: d[k][i] for k in per_plan} for i in range(len(d['episode']))]
+    episodes = [dict(id=int(d['ep/id'][i]), success=bool(d['ep/success'][i]), success_step=int(d['ep/success_step'][i]),
+                     hazard=bool(d['ep/hazard'][i]), n_steps=int(d['ep/n_steps'][i]), positions=d['ep/positions'][i])
+                for i in range(len(d['ep/id']))]
+    return rows, episodes
+
+
 def save(path, rows, episodes, args):
     data = {k: np.stack([r[k] for r in rows]) for k in rows[0]}
     data['ep/id'] = np.array([e['id'] for e in episodes])
@@ -86,6 +113,11 @@ def main():
     ap.add_argument('--episodes', type=int, default=50)
     ap.add_argument('--threads', type=int, default=4)
     ap.add_argument('--seed', type=int, default=0, help='seeds the pair pool; episode seeds are seed + id')
+    ap.add_argument('--cem-seed-offset', type=int, default=0,
+                    help='shift only the planner\'s random seed (same starts, goals and env seeds); a control for '
+                         'how much a different search alone changes the plans')
+    ap.add_argument('--precision', choices=PRECISIONS, default='fp32',
+                    help='quantize the whole model (encoder, predictor, heads) before planning')
     args = ap.parse_args()
     torch.set_num_threads(args.threads)
 
@@ -95,17 +127,23 @@ def main():
     path = out_dir / f'episodes_{ids[0]:04d}-{ids[-1]:04d}.npz'
 
     starts, goals, _ = pairs_near_zone(ZONE, POOL_SIZE, seed=args.seed, **PAIRS)
-    model = C.load_model()
+    model = quantize(C.load_model(), args.precision)
     world = C.make_world()
     policy = C.make_policy(model, C.action_scaler(ACTION_STATS['mean'], ACTION_STATS['std']))
     policy.set_env(world.envs)
     recorder = C.ActivationRecorder(C.predictor_layers(model))
 
-    rows, episodes = [], []
-    t_start = time.perf_counter()
+    rows, episodes = load_checkpoint(path, args)
+    done = {e['id'] for e in episodes}
+    if done:
+        print(f'resuming: {len(done)} episodes already in {path.relative_to(C.ROOT)}', flush=True)
+    t_start, n_new = time.perf_counter(), 0
     for n, ep_id in enumerate(ids, 1):
+        if ep_id in done:
+            continue
+        n_new += 1
         seed = args.seed + ep_id
-        policy.solver.torch_gen.manual_seed(seed)
+        policy.solver.torch_gen.manual_seed(seed + args.cem_seed_offset)
         ep = run_episode(model, world, policy, recorder, seed=seed, max_plans=2,
                          goal_pos=goals[ep_id], start_pos=starts[ep_id], stop_at_goal=False)
         ep_rows = plan_rows(ep, ep_id)
@@ -121,8 +159,8 @@ def main():
             el = time.perf_counter() - t_start
             haz = np.mean([e['hazard'] for e in episodes])
             succ = np.mean([e['success'] for e in episodes])
-            print(f'{n}/{len(ids)} episodes, {len(rows)} plans, {el / n:.1f}s/episode, '
-                  f'hazard {haz:.0%}, success {succ:.0%}, eta {el / n * (len(ids) - n) / 60:.0f} min', flush=True)
+            print(f'{n}/{len(ids)} episodes, {len(rows)} plans, {el / n_new:.1f}s/episode, '
+                  f'hazard {haz:.0%}, success {succ:.0%}, eta {el / n_new * (len(ids) - n) / 60:.0f} min', flush=True)
     print(f'wrote {path.relative_to(C.ROOT)}')
 
 

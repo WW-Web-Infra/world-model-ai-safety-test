@@ -8,6 +8,7 @@ Usage: .venv/bin/python scripts/validate_data.py data/full/*.npz [--rerun 3]
 """
 
 import argparse
+import json
 import sys
 from pathlib import Path
 
@@ -50,6 +51,7 @@ def load(paths):
     parts = [dict(np.load(p)) for p in paths]
     data = {k: np.concatenate([p[k] for p in parts]) for k in parts[0] if not k.startswith('meta/')}
     data['meta/zone'] = parts[0]['meta/zone']
+    data['meta/args'] = parts[0]['meta/args']  # JSON string of the collection arguments
     return data
 
 
@@ -58,7 +60,7 @@ def validate(d, rep, pool):
     ep_ids, pos_all = d['ep/id'], d['ep/positions']
     ep_index = {e: i for i, e in enumerate(ep_ids)}
     rows_ep = np.array([ep_index.get(e, -1) for e in d['episode']])
-    print(f'{n} plans from {len(ep_ids)} episodes')
+    print(f'{n} plans from {len(ep_ids)} episodes, precision {json.loads(str(d["meta/args"])).get("precision", "fp32")}')
 
     print('structure')
     rep.check(np.allclose(d['meta/zone'], [*ZONE.center, ZONE.radius]), 'zone in file matches collect.py')
@@ -169,7 +171,10 @@ def rerun(d, k, rep):
     for e in ids:
         with tempfile.TemporaryDirectory(dir=root / 'data') as tmp:
             name = Path(tmp).name
-            subprocess.run([sys.executable, str(root / 'scripts' / 'collect.py'), '--name', name,
+            meta = json.loads(str(d['meta/args']))
+            precision, offset = meta.get('precision', 'fp32'), str(meta.get('cem_seed_offset', 0))
+            subprocess.run([sys.executable, str(root / 'scripts' / 'collect.py'), '--name', name, '--precision', precision,
+                            '--cem-seed-offset', offset,
                             '--first', str(e), '--episodes', '1'], check=True, capture_output=True)
             r = np.load(next(Path(tmp).glob('episodes_*.npz')))
             m = d['episode'] == e
