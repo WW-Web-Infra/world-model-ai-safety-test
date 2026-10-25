@@ -217,6 +217,36 @@ def figure3():
     g.save('experiment_figure3.png')
 
 
+def figure4():
+    g = Diagram('Figure 4 experiment: can the monitor steer the planner away from the hazard?',
+                'The frozen hazard probe is added to the score CEM uses to pick a plan; outcomes are measured in the real environment')
+    ep = g.box(1, 26, 15, 13, 'Episodes', '120 whose full-precision\nfirst plan entered\nthe zone, and\n60 random ones\n(same seeds)', 'data')
+    cand = g.box(21, 31, 19, 9, 'CEM: 300 candidate\nplans x 30 iterations', '', 'planner', title_size=10)
+    roll = g.box(21, 18, 19, 9, 'Predictor rollout\nof each candidate', '', 'model', title_size=10)
+    g.path([(ep['r'], 35.5), (cand['x'], 35.5)])
+    g.path([(cand['cx'], cand['y']), (roll['cx'], roll['t'])])
+    goal = g.box(45, 31, 21, 9, 'Distance to goal', r'$\Vert \hat z_5(a) - z_g \Vert^2$', 'planner', body_size=10.5)
+    probe = g.box(45, 16, 21, 11, 'Frozen hazard probe', 'block-2 activations of the\ncandidate -> P(enter zone)\n(Figure 1 probe, out-of-fold)', 'probe', body_size=8.8)
+    g.path([(roll['r'], 24), (45, 24)], color='#E65100')
+    g.path([(roll['r'], 26), (42.5, 26), (42.5, 35.5), (goal['x'], 35.5)])
+    score = g.box(71, 23, 20, 14, 'Score each candidate', r'$C(a) = \Vert \hat z_5 - z_g \Vert^2$' + '\n' + r'$+\ \lambda \cdot P(\mathrm{enter} \mid a)$' + '\n\nCEM keeps the lowest', 'planner', body_size=10)
+    g.path([(goal['r'], 35.5), (68.5, 35.5), (68.5, 32), (score['x'], 32)])
+    g.path([(probe['r'], 21.5), (68.5, 21.5), (68.5, 28), (score['x'], 28)], color='#E65100')
+    g.path([(score['cx'], score['t']), (score['cx'], 44), (cand['cx'], 44), (cand['cx'], cand['t'])], color='#5E35B1',
+           label='resample around the best 30', label_at=(56, 44), fontsize=8.6)
+    env = g.box(95, 26, 17, 11, 'Execute the\nchosen plan', 'TwoRooms: did it enter\nthe zone? reach the goal?', 'env', body_size=8.8)
+    g.path([(score['r'], 31), (env['x'], 31)], color='#2E7D32')
+    g.box(71, 6, 41, 11, 'Compared against', 'unguided, and unguided with a new seed (80% still enter: the floor)\n'
+          'a random-direction penalty of the same size\n'
+          'a geometry penalty from the decoded imagined path (knows the zone)\n'
+          'literal steering: subtract the probe direction from block 4 (and a random direction)',
+          'compare', dashed=True, body_size=8.6)
+    res = g.box(116, 14, 18, 25, 'Result', 'monitor penalty, λ = 100:\n46% still enter\n(80% floor, 76% random)\n91% reach the goal\n\nrandom episodes: entry\n43% -> 23%, no loss\nof success\n\nliteral steering: no\ndirection-specific effect', 'result', body_size=8.4)
+    g.path([(env['r'], 31.5), (res['x'], 31.5)])
+    g.legend(['data', 'planner', 'model', 'env', 'probe', 'compare', 'result'])
+    g.save('experiment_figure4.png')
+
+
 def model_diagram():
     g = Diagram('Probing LeWM: where the monitor reads and where the experiments intervene',
                 'One planning step. The predictor is called 5 times (one per action block); every call runs the same 6 blocks',
@@ -340,6 +370,7 @@ if __name__ == '__main__':
     figure1()
     figure2()
     figure3()
+    figure4()
     model_diagram()
     formula_sheet()
     print(f'wrote {OUT.relative_to(C.ROOT)}/')
