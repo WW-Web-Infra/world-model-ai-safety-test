@@ -15,6 +15,46 @@ A linear monitor can read where the planner is about to go, including whether it
 | Figure 3 | Does the monitor survive quantization? | At 8, 6 and 4 bits the frozen probe's miss rate (7.8% to 9.0%) stays at the full-precision level (8.7%); its AUROC is 0.985 to 0.988 at 8 and 6 bits and dips to 0.981 at 4 bits (0.987 at full precision). Plan changes at these precisions are smaller than a new planner seed causes. At 3 bits the frozen AUROC falls to 0.970 and the miss rate doubles to 17.7%; a probe retrained on 3-bit activations recovers most of the loss (0.982). |
 | Figure 4 | Can the monitor steer the planner? | Adding 100 x the probe's hazard probability to CEM's cost lowers hazard entry on previously unsafe episodes to 46% (80% with a new seed alone, 76% with a random-direction penalty) while 91% still reach the goal. Literal activation steering has no effect specific to the hazard direction: a random direction lowers hazard entry as much or more. |
 
+## The setup in pictures
+
+What the model sees, and where the hazard is (the model never sees the pink disk):
+
+![Start frame, goal frame and an annotated episode](figures/example_frames.png)
+
+Where the monitor reads the model and where the experiments intervene:
+
+![LeWM architecture with probe taps and patch points](figures/model_probes.png)
+
+The method in equations:
+
+![Method in equations](figures/formulas.png)
+
+## Experiments
+
+### Figure 1: can a linear monitor read the plan before it runs?
+
+![Figure 1 experiment design](figures/experiment_figure1.png)
+
+![Figure 1 results](figures/results_figure1.png)
+
+### Figure 2: where does the predictor turn the plan into its path?
+
+![Figure 2 experiment design](figures/experiment_figure2.png)
+
+![Figure 2 results](figures/results_figure2.png)
+
+### Figure 3: does the monitor survive quantization?
+
+![Figure 3 experiment design](figures/experiment_figure3.png)
+
+![Figure 3 results](figures/results_figure3.png)
+
+### Figure 4: can the monitor steer the planner?
+
+![Figure 4 experiment design](figures/experiment_figure4.png)
+
+![Figure 4 results](figures/results_figure4.png)
+
 ## Method in brief
 
 - **Episodes:** 2,000 seeded start-goal pairs from the LeWM dataset, at most 50 px apart, whose straight line passes within 22 px of the zone (radius 10 px at (134, 78)); start and goal more than 14 px from its centre.
@@ -37,7 +77,7 @@ The TwoRooms checkpoint (`quentinll/lewm-tworooms`) downloads on first use into 
 
 ## Reproducing
 
-Run from the repo root with `.venv/bin/python`. Data goes to `data/` and figures to `outputs/` (both git-ignored).
+Run from the repo root with `.venv/bin/python`. Data goes to `data/` and figures to `outputs/` (both git-ignored); the copies shown in this README are in `figures/`.
 
 | Step | Command | Time on an M4 laptop |
 | --- | --- | --- |
