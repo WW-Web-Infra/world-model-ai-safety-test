@@ -64,16 +64,36 @@ The method in equations:
 
 ## Setup
 
-Python 3.13, CPU only.
+Python 3.13, CPU only. Install the locked, hash-checked dependencies:
 
 ```bash
 python3 -m venv .venv
-.venv/bin/pip install -r requirements.txt
+.venv/bin/pip install --require-hashes -r requirements.lock
 ```
 
-The TwoRooms checkpoint (`quentinll/lewm-tworooms`) downloads on first use into `.stable-wm/`. The dataset is only needed for start-goal pairs and action statistics: download `tworoom.tar.zst` (3.4 GB, no account needed) from the `quentinll/lewm-tworooms` dataset repo on Hugging Face, extract it, and place `tworoom.h5` at `.stable-wm/datasets/tworoom.h5`.
+`requirements.txt` lists the top-level packages at the versions the results were produced with; `requirements.lock` pins every package with its SHA-256 hashes. `transformers` must stay below 5: the checkpoint uses the 4.x ViT layer names.
 
-`transformers` must stay below 5: the checkpoint uses the 4.x ViT layer names.
+The TwoRooms checkpoint downloads on first use into `.stable-wm/`, from a pinned revision of `quentinll/lewm-tworooms` on Hugging Face, and is checked against pinned SHA-256 hashes on every load (`lewm_probe/checkpoint.py`).
+
+The dataset is only needed for start-goal pairs and action statistics. Download `tworoom.tar.zst` (3.4 GB, no account needed) from the pinned dataset revision, check its hash, and extract `tworoom.h5` to `.stable-wm/datasets/`:
+
+```bash
+curl -L -o tworoom.tar.zst https://huggingface.co/datasets/quentinll/lewm-tworooms/resolve/6903a2de048b13819d812da0b4dd661290bc01e4/tworoom.tar.zst
+```
+
+```bash
+echo "494b1a02f0765cd9a0d9daf1786c419ced1009977fc45d01e3158932f8d080ca  tworoom.tar.zst" | shasum -a 256 -c
+```
+
+```bash
+mkdir -p .stable-wm/datasets && tar --zstd -xf tworoom.tar.zst -C .stable-wm/datasets tworoom.h5
+```
+
+## Security notes
+
+- The checkpoint config is turned into a model by Hydra, which imports whatever each `_target_` names. `lewm_probe/checkpoint.py` loads only from a pinned revision, verifies SHA-256 hashes on every load, accepts only the six classes this checkpoint uses, and loads weights with `torch.load(weights_only=True)`.
+- Saved probes and the position decoder are plain `.npz` arrays read with `allow_pickle=False` (`lewm_probe/frozen.py`); nothing in this repo loads pickles.
+- Dependencies are locked with hashes in `requirements.lock`.
 
 ## Reproducing
 
