@@ -11,7 +11,6 @@ Usage: .venv/bin/python scripts/replay_controls.py
 Writes data/full/replay_<model>.npz.
 """
 
-import json
 import sys
 from pathlib import Path
 
@@ -19,20 +18,18 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import numpy as np
 import torch
-from hydra.utils import instantiate
 
 from lewm_probe import common as C
 from lewm_probe import dataset as D
 from lewm_probe.episode import goal_image, replay_plan
 
 OUT = C.ROOT / 'data' / 'full'
-CONFIG = C.ROOT / '.stable-wm' / 'checkpoints' / 'models--quentinll--lewm-tworooms' / 'config.json'
 
 
 def random_init_model(seed=0):
-    torch.manual_seed(seed)
-    model = instantiate(json.loads(CONFIG.read_text()))
-    return model.eval().requires_grad_(False)
+    from lewm_probe import checkpoint
+
+    return checkpoint.build_untrained(seed)
 
 
 def shuffled_model(seed=0):

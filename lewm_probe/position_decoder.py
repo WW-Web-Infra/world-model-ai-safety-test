@@ -4,7 +4,6 @@ Independent of every hazard label and probe: it is fitted on encoder latents of 
 at random positions, then applied to the predictor's imagined latents to draw the imagined path.
 """
 
-import joblib
 import numpy as np
 import torch
 from sklearn.linear_model import RidgeCV
@@ -13,8 +12,9 @@ from sklearn.pipeline import make_pipeline
 from sklearn.preprocessing import StandardScaler
 
 from . import common as C
+from .frozen import load_decoder, save_decoder
 
-PATH = C.ROOT / 'data' / 'pairs' / 'position_decoder.joblib'
+PATH = C.ROOT / 'data' / 'pairs' / 'position_decoder.npz'
 RADIUS = 7.0
 ARENA = (14.0 + RADIUS, 209.0 - RADIUS)
 WALL_X = (107.0 - RADIUS, 117.0 + RADIUS)
@@ -59,9 +59,9 @@ def train(model, env, n_train=4000, n_test=1000):
         m.fit(z[tr], pos[tr])
         errs[name] = float(np.linalg.norm(m.predict(z[te]) - pos[te], axis=1).mean())
     best = min(errs, key=errs.get)
-    joblib.dump(dict(model=candidates[best], name=best, test_error_px=errs), PATH)
+    save_decoder(PATH, candidates[best], best, errs)
     return candidates[best], errs
 
 
 def load():
-    return joblib.load(PATH)
+    return load_decoder(PATH)

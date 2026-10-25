@@ -25,10 +25,10 @@ CEM = dict(num_samples=300, n_steps=30, topk=30, var_scale=1.0)
 
 
 def load_model():
-    model = swm.wm.utils.load_pretrained(CHECKPOINT)
-    model = model.eval()
-    model.requires_grad_(False)
-    return model
+    """The trained checkpoint, from a pinned and hash-verified revision (see checkpoint.py)."""
+    from . import checkpoint
+
+    return checkpoint.load()
 
 
 def img_transform():

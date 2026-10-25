@@ -28,7 +28,6 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-import joblib
 import matplotlib
 
 matplotlib.use('Agg')
@@ -44,6 +43,7 @@ from sklearn.preprocessing import StandardScaler
 from lewm_probe import common as C
 from lewm_probe import dataset as D
 from lewm_probe import probes as P
+from lewm_probe.frozen import save_probes
 from lewm_probe.hazard import segment_distance
 
 OUT = C.ROOT / 'outputs' / 'figure1'
@@ -231,7 +231,7 @@ def main():
                         **{'|'.join(j): r['oof'] for j, r in results.items()},
                         **{f'selected|{m}|{t}': v for (m, t), v in selected.items()})
     frozen = {j: dict(models=r['models'], thresholds=r.get('thresholds')) for j, r in results.items() if r['models']}
-    joblib.dump(dict(probes=frozen, folds=folds, episodes=groups), OUT / 'frozen_probes.joblib', compress=3)
+    save_probes(OUT / 'frozen_probes.npz', frozen, folds, groups)
     plot(table, increments, OUT / 'figure1.png')
     summarize(table, increments)
     print(f'wrote {OUT.relative_to(C.ROOT)}/ in {time.perf_counter() - t0:.0f}s')

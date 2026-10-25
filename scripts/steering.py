@@ -22,6 +22,7 @@ import torch
 from lewm_probe import common as C
 from lewm_probe import dataset as D
 from lewm_probe.episode import run_episode
+from lewm_probe.frozen import load_probes
 from lewm_probe.hazard import pairs_near_zone
 from lewm_probe.steering import STEER_LAYER, GuidedCost
 from scripts.collect import ACTION_STATS, PAIRS, POOL_SIZE, ZONE
@@ -63,8 +64,7 @@ def main():
     ids = evaluation_ids(args.set, args.episodes, d_fp)
     starts, goals, _ = pairs_near_zone(ZONE, POOL_SIZE, seed=0, **PAIRS)
     frozen = Frozen()
-    from joblib import load
-    probes = load(C.ROOT / 'outputs' / 'figure1' / 'frozen_probes.joblib')['probes']
+    probes = load_probes(C.ROOT / 'outputs' / 'figure1' / 'frozen_probes.npz')['probes']
     if args.mode.startswith('steer'):
         acts = d_fp[f'act/predictor.block{STEER_LAYER}']  # (n, 5, D), for the projection std
 
@@ -93,7 +93,7 @@ def main():
             guided.set_probe(probes[PROBE_KEY]['models'][fold], random_seed=1234 if args.mode == 'random' else None)
         if args.mode.startswith('steer'):
             pipe = probes[STEER_KEY]['models'][fold]
-            scale, coef = pipe[0].scale_, pipe[-1].coef_[0]
+            scale, coef = pipe.scale, pipe.coef[0]
             dirs = (coef / scale).reshape(5, -1)
             dirs = dirs / np.linalg.norm(dirs, axis=1, keepdims=True)
             if args.mode == 'steer_random':

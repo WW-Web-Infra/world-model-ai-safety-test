@@ -27,11 +27,10 @@ STEER_LAYER = 4   # Figure 2: the route is fully carried by block 4's output
 N_CALLS = 5
 
 
-def linear_parts(pipeline):
-    """(mean, scale, coef, intercept) of a StandardScaler + logistic pipeline, as float tensors."""
-    sc, lr = pipeline[0], pipeline[-1]
+def linear_parts(probe):
+    """(mean, scale, coef, intercept) of a saved LinearProbe (lewm_probe.frozen), as float tensors."""
     t = lambda a: torch.as_tensor(np.asarray(a, dtype=np.float32))
-    return t(sc.mean_), t(sc.scale_), t(lr.coef_[0]), t(lr.intercept_)
+    return t(probe.mean), t(probe.scale), t(probe.coef[0]), t(probe.intercept)
 
 
 class GuidedCost(nn.Module):
@@ -52,8 +51,8 @@ class GuidedCost(nn.Module):
         self.direction = None  # (N_CALLS, D) steering vectors, already scaled
 
     # -- configuration ------------------------------------------------------------------------
-    def set_probe(self, pipeline, random_seed=None):
-        mean, scale, coef, b = linear_parts(pipeline)
+    def set_probe(self, probe, random_seed=None):
+        mean, scale, coef, b = linear_parts(probe)
         if random_seed is not None:
             g = torch.Generator().manual_seed(random_seed)
             r = torch.randn(coef.shape, generator=g)

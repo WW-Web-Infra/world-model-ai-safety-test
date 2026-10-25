@@ -26,7 +26,6 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-import joblib
 import matplotlib
 
 matplotlib.use('Agg')
@@ -40,6 +39,7 @@ from lewm_probe import common as C
 from lewm_probe import dataset as D
 from lewm_probe import patching as PT
 from lewm_probe import position_decoder as PD
+from lewm_probe.frozen import load_probes
 from lewm_probe.hazard import segment_distance
 from scripts.feasibility_check import draw_room
 from scripts.make_pairs import Planner
@@ -60,7 +60,7 @@ class Readouts:
     def __init__(self, d):
         self.decoder = PD.load()['model']
         self.center = D.zone(d).center
-        fz = joblib.load(C.ROOT / 'outputs' / 'figure1' / 'frozen_probes.joblib')
+        fz = load_probes(C.ROOT / 'outputs' / 'figure1' / 'frozen_probes.npz')
         self.probe_models = fz['probes'][('trained', 'pred_proj', 'all', 'hazard', 'linear')]['models']
         self.test_fold = {}
         for f, (_, te) in enumerate(fz['folds']):

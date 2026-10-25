@@ -30,7 +30,6 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-import joblib
 import matplotlib
 
 matplotlib.use('Agg')
@@ -42,6 +41,7 @@ from sklearn.metrics import roc_auc_score
 from lewm_probe import common as C
 from lewm_probe import dataset as D
 from lewm_probe import probes as P
+from lewm_probe.frozen import load_probes
 from lewm_probe.quantize import quantize
 
 OUT = C.ROOT / 'outputs' / 'figure3'
@@ -64,7 +64,7 @@ class Frozen:
     """Figure 1's hazard probes with their per-fold 90%-recall thresholds."""
 
     def __init__(self):
-        fz = joblib.load(C.ROOT / 'outputs' / 'figure1' / 'frozen_probes.joblib')
+        fz = load_probes(C.ROOT / 'outputs' / 'figure1' / 'frozen_probes.npz')
         self.fold_of = {e: f for f, (_, te) in enumerate(fz['folds']) for e in np.unique(fz['episodes'][te])}
         self.probes = {name: fz['probes'][('trained', layer, step, 'hazard', 'linear')]
                        for name, (layer, step) in MONITORS.items()}
