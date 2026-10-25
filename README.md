@@ -94,6 +94,7 @@ mkdir -p .stable-wm/datasets && tar --zstd -xf tworoom.tar.zst -C .stable-wm/dat
 - The checkpoint config is turned into a model by Hydra, which imports whatever each `_target_` names. `lewm_probe/checkpoint.py` loads only from a pinned revision, verifies SHA-256 hashes on every load, accepts only the six classes this checkpoint uses, and loads weights with `torch.load(weights_only=True)`.
 - Saved probes and the position decoder are plain `.npz` arrays read with `allow_pickle=False` (`lewm_probe/frozen.py`); nothing in this repo loads pickles.
 - Dependencies are locked with hashes in `requirements.lock`.
+- `transformers` stays on 4.57.6 because 5.x renames the ViT's modules and can no longer load this checkpoint. The open advisories against 4.57.6 cover remote code, `Trainer`, generation, `save_pretrained` and LightGlue loading; this repo only builds a ViT from a config (`ViTModel(ViTConfig(...))`) and downloads nothing through `transformers`.
 
 ## Reproducing
 
