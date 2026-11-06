@@ -366,7 +366,43 @@ def formula_sheet():
     plt.close(fig)
 
 
+def summary_diagram():
+    """One-page visual summary of the four experiments, for the top of the final report."""
+    g = Diagram('Summary: can we read a latent planner\'s intent before it acts?',
+                'LeWM in TwoRooms: 2,000 seeded episodes, a hazard zone the model never sees, a linear monitor on the '
+                'predictor\'s activations; all on a laptop CPU', xlim=135, ylim=50)
+    verdicts = {'yes': ('#E8F5E9', '#2E7D32', '#1B5E20'), 'partly': ('#FFF3E0', '#E65100', '#BF360C')}
+    cards = [
+        ('1. Can a linear monitor\nread the plan?', '0.987', 'hazard-entry AUROC\n\nvs 0.928 for boosted trees\non start + goal geometry;\nadding the activations to\ngeometry gains +0.05 to +0.06',
+         'yes', 'Yes: the plan is readable\nbefore it runs'),
+        ('2. Where is the route\ncomputed?', 'blocks 0-4', 'where the plan is used\n\nswapping a safe plan\'s actions\ninto blocks 0-4 moves 96%\nof the route gap; block 4\'s\noutput carries all of it',
+         'yes', 'Across the first five of six\nblocks; the probe follows it'),
+        ('3. Does it survive\nquantization?', '8.7% → 7.8-9.0%', 'missed hazard plans,\nfull precision → 8, 6, 4 bits\n\nat 3 bits: 17.7% missed,\n79% reach the goal;\nretraining recovers most',
+         'partly', 'Yes down to 4 bits;\nretrain the monitor at 3'),
+        ('4. Can it steer\nthe planner?', '80% → 46%', 'unsafe episodes still entering:\nnew seed → monitor in the cost\n\n91% still reach the goal;\nrandom penalty: 76%; pushing\nactivations: no specific effect',
+         'yes', 'Yes, as a penalty in the\nplanner\'s cost'),
+    ]
+    w, gap, y0, h = 31.5, 2.0, 12.5, 30
+    for i, (question, number, body, verdict, verdict_text) in enumerate(cards):
+        x = 1 + i * (w + gap)
+        g.box(x, y0, w, h, '', role='model')
+        g.ax.text(x + w / 2, y0 + h - 1.2, question, ha='center', va='top', fontsize=11.5, fontweight='bold',
+                  color='#0D47A1', linespacing=1.25)
+        g.ax.text(x + w / 2, y0 + h - 8.6, number, ha='center', va='top', fontsize=19, fontweight='bold', color='#1F2933')
+        g.ax.text(x + w / 2, y0 + h - 13.4, body, ha='center', va='top', fontsize=9.2, color='#3E4C59', linespacing=1.35)
+        fill, edge, text = verdicts[verdict]
+        g.ax.add_patch(FancyBboxPatch((x + 1.2, y0 + 0.9), w - 2.4, 5.2, boxstyle='round,pad=0.2,rounding_size=0.6',
+                                      fc=fill, ec=edge, lw=1.4))
+        g.ax.text(x + w / 2, y0 + 3.5, verdict_text, ha='center', va='center', fontsize=9.6, fontweight='bold',
+                  color=text, linespacing=1.25)
+    g.box(1, 1.5, 132.5, 8.5, 'Takeaway: a cheap linear readout of the planner\'s imagined future flags hazardous plans before they run,\n'
+          'keeps working on a model compressed to 4 bits, and can steer the planner away. Re-check it after compressing; retrain it at 3 bits.',
+          role='result', title_size=10.8)
+    g.save('summary.png')
+
+
 if __name__ == '__main__':
+    summary_diagram()
     figure1()
     figure2()
     figure3()
