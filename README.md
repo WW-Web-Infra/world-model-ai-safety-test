@@ -139,3 +139,7 @@ Collection is seeded by episode id and resumes from its last checkpoint if inter
 ## Limitations
 
 TwoRooms is a 2-D toy task with one zone placement, so the results show the method works on a real latent planner, not that it scales to robots. The monitor reads one extra predictor pass on the chosen plan. The probes were not tested against a model trained to evade them. The 6-, 4- and 3-bit models use rounded weights computed in floating point; only the 8-bit model uses integer kernels.
+
+## License
+
+The code in this repository is released under the [MIT License](LICENSE). The LeWM checkpoint and the TwoRooms dataset are not part of this repository; they are downloaded from Hugging Face (`quentinll/lewm-tworooms`) and remain under their authors' terms.
