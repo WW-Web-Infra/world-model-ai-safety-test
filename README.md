@@ -4,9 +4,19 @@ Can we read a latent planner's intent before it acts? Interpreting a JEPA world 
 
 The model is [LeWorldModel](https://arxiv.org/abs/2603.19312) (LeWM), a JEPA world model that plans in latent space with the cross-entropy method (CEM), in its TwoRooms navigation task. A hazard zone is added that the planner is never told about: it is not drawn in the frames and not in the planner's objective. Everything runs on a laptop CPU.
 
+## Why this matters
+
+Capable agents increasingly plan in a learned latent space instead of in text. A language model's chain of thought can be read before it acts ([Korbak et al., 2025](https://arxiv.org/abs/2507.11473)); a plan computed as a sequence of latent vectors cannot, unless we can decode it. Robots also run compressed models, so a monitor validated on the full model could keep reporting "safe" after quantization has changed what the planner does.
+
+Probing studies of world models ask what a model knows about its world ([Zhang, 2026](https://arxiv.org/abs/2603.21546); [Joseph et al., 2026](https://arxiv.org/abs/2602.07050)). They do not test whether an overseer can read the plan a planner has chosen, including a property it was never trained on, before the plan runs. Studies of whether activation monitors survive model updates or quantization have used language models only ([Do Activation Monitors Survive Model Updates?, 2026](https://arxiv.org/abs/2606.15980); [Duan, 2026](https://arxiv.org/abs/2606.03002)). This project tests both on a planner that reasons only in latent space: if a cheap linear monitor can read the plan, an overseer can check it before the agent acts, and the check has to keep working on the compressed model that actually runs.
+
+![Why this question matters](figures/why_it_matters.gif)
+
 ## Results
 
 A linear monitor can read where the planner is about to go, including whether its plan will enter the hazard zone, before the plan runs. It keeps working after 8-, 6- and 4-bit quantization, degrades at 3 bits where a retrained probe recovers most of the loss, and can be used as a penalty in the planner's cost to steer plans away from the hazard.
+
+![Summary of the four experiments](figures/summary.png)
 
 | | Question | Result |
 | --- | --- | --- |
@@ -16,6 +26,10 @@ A linear monitor can read where the planner is about to go, including whether it
 | Figure 4 | Can the monitor steer the planner? | Adding 100 x the probe's hazard probability to CEM's cost lowers hazard entry on previously unsafe episodes to 46% (80% with a new seed alone, 76% with a random-direction penalty) while 91% still reach the goal. Literal activation steering has no effect specific to the hazard direction: a random direction lowers hazard entry as much or more. |
 
 ## The setup in pictures
+
+How the model plans and acts, and how the monitor is trained:
+
+![Setup at a glance](figures/setup.gif)
 
 What the model sees, and where the hazard is (the model never sees the pink disk):
 
@@ -112,7 +126,8 @@ Run from the repo root with `.venv/bin/python`. Data goes to `data/` and figures
 | Quantized reruns and the planner-seed control | `scripts/run_quantization_sweep.sh`, then `scripts/run_reseed_control.sh` | ~14 h, then ~3.5 h |
 | Figure 3 | `scripts/figure3.py` | ~15 min |
 | Steering runs, then Figure 4 | `scripts/run_steering.sh`, then `scripts/figure4.py` | ~3 h, then seconds |
-| Experiment diagrams | `scripts/diagrams.py` | seconds |
+| Experiment diagrams, the summary card and the animated GIFs | `scripts/diagrams.py` | seconds |
+| Plain-language charts for the blog post | `scripts/blog_figures.py` | seconds |
 
 Collection is seeded by episode id and resumes from its last checkpoint if interrupted, so reruns give identical data. Run long jobs one process at a time on a laptop charger that cannot supply full load.
 
