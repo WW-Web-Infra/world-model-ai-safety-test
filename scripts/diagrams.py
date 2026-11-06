@@ -401,7 +401,64 @@ def summary_diagram():
     g.save('summary.png')
 
 
+def setup_diagram():
+    """Simple block diagram of the setup: the planning loop on top, the monitor below."""
+    g = Diagram('Setup at a glance', 'Top: how LeWM plans and acts. Bottom: how the monitor is trained and what it reads.',
+                xlim=135, ylim=50)
+    frames = g.box(1, 27, 17, 12, 'Start + goal\nframes', '224 x 224 pixels;\nno hazard drawn')
+    enc = g.box(22, 27, 17, 12, 'Encoder', 'ViT-tiny:\nframe \u2192 192 numbers', 'model')
+    pred = g.box(43, 27, 21, 12, 'Predictor', 'imagines 5 steps ahead\nfor each candidate plan', 'model')
+    cem = g.box(68, 27, 21, 12, 'CEM planner', '300 plans x 30 rounds;\nkeeps the plan ending\nclosest to the goal', 'planner')
+    env = g.box(93, 27, 19, 12, 'TwoRooms', 'executes the chosen\nplan for 25 steps', 'env')
+    zone = g.box(116, 27, 18, 12, 'Hazard zone', 'disk r = 10 px by the\ndoor; never shown\nto the model', 'compare', dashed=True)
+    g.path([(frames['r'], frames['cy']), (enc['x'], enc['cy'])])
+    g.path([(enc['r'], enc['cy']), (pred['x'], pred['cy'])])
+    g.path([(pred['r'], 35), (cem['x'], 35)], color='#5E35B1')
+    g.path([(cem['x'], 30), (pred['r'], 30)], color='#5E35B1')
+    g.ax.text(66, 25.2, 'plans in, imagined ends out', ha='center', va='center', fontsize=8.5, color='#5E35B1', style='italic')
+    g.path([(cem['r'], cem['cy']), (env['x'], env['cy'])], color='#5E35B1')
+
+    acts = g.box(30, 6, 26, 12, 'Activations', 'chosen plan replayed once;\nevery predictor block,\nevery imagined step', 'model')
+    probe = g.box(62, 6, 24, 12, 'Linear monitor', 'one weighted sum:\nP(plan enters the zone)', 'probe')
+    labels = g.box(93, 6, 19, 12, 'Labels', 'did the executed\npath enter the zone?', 'env')
+    g.path([(pred['cx'], pred['y']), (pred['cx'], 21.5), (acts['cx'], 21.5), (acts['cx'], acts['t'])])
+    g.path([(acts['r'], acts['cy']), (probe['x'], probe['cy'])])
+    g.path([(env['cx'], env['y']), (env['cx'], 21.5), (labels['cx'], 21.5), (labels['cx'], labels['t'])], color='#2E7D32')
+    g.path([(labels['x'], labels['cy']), (probe['r'], probe['cy'])], color='#2E7D32', label='trains', label_at=(89, 14), fontsize=8.5)
+    g.path([(zone['cx'], zone['y']), (zone['cx'], 12), (labels['r'], 12)], color='#757575')
+    g.note(1, 17, '2,000 seeded episodes\n2,308 plans\n48% enter the zone\n\n5-fold splits by episode;\nall on a laptop CPU', size=9.5)
+    g.legend(['data', 'model', 'planner', 'env', 'probe', 'compare'])
+    g.save('setup.png')
+
+
+def why_diagram():
+    """Why the question matters: language reasoning can be read, latent plans cannot, and deployment compresses the model."""
+    g = Diagram('Why this question matters', 'Oversight tools that read reasoning need something to read, and they have to keep working on the deployed model',
+                xlim=135, ylim=47)
+    cols = [
+        (1, 'Language model', [('Reasoning', 'written out in text\n("chain of thought")', 'data'),
+                               ('Overseer', 'reads it before\nthe model acts', 'env')],
+         'Can check the plan', 'env'),
+        (46, 'Latent world-model planner', [('Reasoning', 'lists of numbers\nimagined by the model;\nno text, no pictures', 'model'),
+                                            ('Overseer', 'nothing to read;\nfinds out only after\nthe robot acts', 'compare')],
+         'This project: a linear monitor\nreads the imagined plan', 'probe'),
+        (91, 'Deployed on a robot', [('Model', 'compressed to fit a\nsmall chip (8, 6, 4,\n3 bits)', 'model'),
+                                     ('Monitor', 'validated on the full\nmodel; does it still\ntell the truth?', 'compare')],
+         'This project: tested at\nevery precision vs a noise floor', 'probe'),
+    ]
+    for x, head, (top, bottom), verdict, role in cols:
+        g.ax.text(x + 21.5, 38.5, head, ha='center', va='center', fontsize=12.5, fontweight='bold', color='#1F2933')
+        a = g.box(x, 26, 43, 9.5, top[0], top[1], top[2], title_size=10.5, body_size=9.2)
+        b = g.box(x, 13.5, 43, 9.5, bottom[0], bottom[1], bottom[2], dashed=bottom[2] == 'compare', title_size=10.5, body_size=9.2)
+        g.path([(a['cx'], a['y']), (b['cx'], b['t'])])
+        v = g.box(x, 2, 43, 8, verdict, '', role, title_size=10)
+        g.path([(b['cx'], b['y']), (v['cx'], v['t'])])
+    g.save('why_it_matters.png')
+
+
 if __name__ == '__main__':
+    setup_diagram()
+    why_diagram()
     summary_diagram()
     figure1()
     figure2()
