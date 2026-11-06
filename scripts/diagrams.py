@@ -46,6 +46,40 @@ class Diagram:
         self.ax.text(1, ylim - 0.8, title, fontsize=16, fontweight='bold', va='top', color='#1F2933')
         self.ax.text(1, ylim - 3.9, subtitle, fontsize=11, va='top', color=GREY)
         self.boxes = []
+        self.steps = []  # (artists that existed before this step, caption); used only by save_gif
+        self.final_caption = ''
+
+    def _artists(self):
+        return [*self.ax.patches, *self.ax.texts, *self.ax.lines]
+
+    def step(self, caption):
+        """Start a new animation step: everything drawn from here until the next step appears together."""
+        self.steps.append(({id(a) for a in self._artists()}, caption))
+
+    def save_gif(self, name, step_ms=1700, final_ms=4000, dpi=110):
+        """Animated version: dims every step, then reveals them one at a time with a caption below."""
+        import io
+
+        from PIL import Image
+
+        arts = self._artists()
+        group = {id(a): sum(id(a) not in seen for seen, _ in self.steps) - 1 for a in arts}
+        captions = [c for _, c in self.steps] + [self.final_caption]
+        cap = self.ax.text(1, self.ax.get_ylim()[0] - 0.8, max(captions, key=len), fontsize=14, va='top',
+                           color='#1F2933', fontweight='bold')
+        self.fig.canvas.draw()
+        bbox = self.fig.get_tightbbox(self.fig.canvas.get_renderer()).padded(0.15)
+        frames = []
+        for k, caption in enumerate(captions):
+            for a in arts:
+                a.set_alpha(1.0 if group[id(a)] <= k else 0.07)
+            n = len(self.steps)
+            cap.set_text(f'{k + 1} / {n}   {caption}' if k < n else caption)
+            buf = io.BytesIO()
+            self.fig.savefig(buf, dpi=dpi, bbox_inches=bbox, facecolor='white')
+            frames.append(Image.open(buf).convert('RGB').convert('P', palette=Image.ADAPTIVE, colors=128))
+        frames[0].save(OUT / name, save_all=True, append_images=frames[1:], loop=0, optimize=True,
+                       duration=[step_ms] * (len(frames) - 1) + [final_ms])
 
     def box(self, x, y, w, h, title, body='', role='data', dashed=False, title_size=11, body_size=9.2):
         fill, edge, text = STYLES[role]
@@ -101,6 +135,8 @@ class Diagram:
                 if tb.x0 < pb.x0 + 2 or tb.x1 > pb.x1 - 2 or tb.y0 < pb.y0 + 2 or tb.y1 > pb.y1 - 2:
                     print(f'    {name}: text overflows box "{label}"')
         self.fig.savefig(OUT / name, dpi=170, bbox_inches='tight', facecolor='white')
+        if self.steps:
+            self.save_gif(name.replace('.png', '.gif'))
         plt.close(self.fig)
 
 
@@ -405,29 +441,36 @@ def setup_diagram():
     """Simple block diagram of the setup: the planning loop on top, the monitor below."""
     g = Diagram('Setup at a glance', 'Top: how LeWM plans and acts. Bottom: how the monitor is trained and what it reads.',
                 xlim=135, ylim=50)
+    g.note(1, 17, '2,000 seeded episodes\n2,308 plans\n48% enter the zone\n\n5-fold splits by episode;\nall on a laptop CPU', size=9.5)
+    g.legend(['data', 'model', 'planner', 'env', 'probe', 'compare'])
+    g.step('The agent sees a camera frame of where it is and a picture of its goal.')
     frames = g.box(1, 27, 17, 12, 'Start + goal\nframes', '224 x 224 pixels;\nno hazard drawn')
+    g.step('The encoder turns each frame into 192 numbers.')
     enc = g.box(22, 27, 17, 12, 'Encoder', 'ViT-tiny:\nframe \u2192 192 numbers', 'model')
+    g.path([(frames['r'], frames['cy']), (enc['x'], enc['cy'])])
+    g.step('The planner tries 300 candidate plans; the predictor imagines where each one leads.')
     pred = g.box(43, 27, 21, 12, 'Predictor', 'imagines 5 steps ahead\nfor each candidate plan', 'model')
     cem = g.box(68, 27, 21, 12, 'CEM planner', '300 plans x 30 rounds;\nkeeps the plan ending\nclosest to the goal', 'planner')
-    env = g.box(93, 27, 19, 12, 'TwoRooms', 'executes the chosen\nplan for 25 steps', 'env')
-    zone = g.box(116, 27, 18, 12, 'Hazard zone', 'disk r = 10 px by the\ndoor; never shown\nto the model', 'compare', dashed=True)
-    g.path([(frames['r'], frames['cy']), (enc['x'], enc['cy'])])
     g.path([(enc['r'], enc['cy']), (pred['x'], pred['cy'])])
     g.path([(pred['r'], 35), (cem['x'], 35)], color='#5E35B1')
     g.path([(cem['x'], 30), (pred['r'], 30)], color='#5E35B1')
     g.ax.text(66, 25.2, 'plans in, imagined ends out', ha='center', va='center', fontsize=8.5, color='#5E35B1', style='italic')
+    g.step('The chosen plan runs for 25 steps in the real environment.')
+    env = g.box(93, 27, 19, 12, 'TwoRooms', 'executes the chosen\nplan for 25 steps', 'env')
     g.path([(cem['r'], cem['cy']), (env['x'], env['cy'])], color='#5E35B1')
-
-    acts = g.box(30, 6, 26, 12, 'Activations', 'chosen plan replayed once;\nevery predictor block,\nevery imagined step', 'model')
-    probe = g.box(62, 6, 24, 12, 'Linear monitor', 'one weighted sum:\nP(plan enters the zone)', 'probe')
+    g.step('A hazard zone the model never sees decides each label.')
+    zone = g.box(116, 27, 18, 12, 'Hazard zone', 'disk r = 10 px by the\ndoor; never shown\nto the model', 'compare', dashed=True)
     labels = g.box(93, 6, 19, 12, 'Labels', 'did the executed\npath enter the zone?', 'env')
-    g.path([(pred['cx'], pred['y']), (pred['cx'], 21.5), (acts['cx'], 21.5), (acts['cx'], acts['t'])])
-    g.path([(acts['r'], acts['cy']), (probe['x'], probe['cy'])])
     g.path([(env['cx'], env['y']), (env['cx'], 21.5), (labels['cx'], 21.5), (labels['cx'], labels['t'])], color='#2E7D32')
-    g.path([(labels['x'], labels['cy']), (probe['r'], probe['cy'])], color='#2E7D32', label='trains', label_at=(89, 14), fontsize=8.5)
     g.path([(zone['cx'], zone['y']), (zone['cx'], 12), (labels['r'], 12)], color='#757575')
-    g.note(1, 17, '2,000 seeded episodes\n2,308 plans\n48% enter the zone\n\n5-fold splits by episode;\nall on a laptop CPU', size=9.5)
-    g.legend(['data', 'model', 'planner', 'env', 'probe', 'compare'])
+    g.step('The chosen plan is replayed once and the predictor\'s activations are recorded.')
+    acts = g.box(30, 6, 26, 12, 'Activations', 'chosen plan replayed once;\nevery predictor block,\nevery imagined step', 'model')
+    g.path([(pred['cx'], pred['y']), (pred['cx'], 21.5), (acts['cx'], 21.5), (acts['cx'], acts['t'])])
+    g.step('The linear monitor learns to predict the label from the activations, before the plan runs.')
+    probe = g.box(62, 6, 24, 12, 'Linear monitor', 'one weighted sum:\nP(plan enters the zone)', 'probe')
+    g.path([(acts['r'], acts['cy']), (probe['x'], probe['cy'])])
+    g.path([(labels['x'], labels['cy']), (probe['r'], probe['cy'])], color='#2E7D32', label='trains', label_at=(89, 14), fontsize=8.5)
+    g.final_caption = 'Plan, act, label, and read: the monitor sees the plan before the agent moves.'
     g.save('setup.png')
 
 
@@ -446,7 +489,12 @@ def why_diagram():
                                      ('Monitor', 'validated on the full\nmodel; does it still\ntell the truth?', 'compare')],
          'This project: tested at\nevery precision vs a noise floor', 'probe'),
     ]
-    for x, head, (top, bottom), verdict, role in cols:
+    steps = ['A language model writes its reasoning out, so an overseer can read it first.',
+             'A latent planner reasons in numbers, so there is nothing to read until it acts.',
+             'Robots run compressed models, so the monitor has to keep working after compression.']
+    g.final_caption = 'This project tests both: reading the latent plan, and whether that survives compression.'
+    for (x, head, (top, bottom), verdict, role), caption in zip(cols, steps):
+        g.step(caption)
         g.ax.text(x + 21.5, 38.5, head, ha='center', va='center', fontsize=12.5, fontweight='bold', color='#1F2933')
         a = g.box(x, 26, 43, 9.5, top[0], top[1], top[2], title_size=10.5, body_size=9.2)
         b = g.box(x, 13.5, 43, 9.5, bottom[0], bottom[1], bottom[2], dashed=bottom[2] == 'compare', title_size=10.5, body_size=9.2)
