@@ -1,12 +1,15 @@
 """Figure 4 (RQ4): can the monitor steer the planner away from the hazard?
 
-Unsafe set: 120 episodes whose full-precision first plan entered the zone. Random set: 60 episodes.
+Unsafe set: 240 episodes whose full-precision first plan entered the zone. Random set: 240 episodes
+(the first 120 and 60 are the original sets; see scripts/steering.py).
 For each guidance method and strength: how often the planner still enters the zone and how often
 it reaches the goal. References come from data already collected for the same episode ids:
   - unguided full precision (unsafe set: 100% enter by selection)
   - the same episodes with only the planner's seed changed (data/fp32_reseed): any change to
     the search re-rolls borderline routes, so this is the floor a real effect must beat
-Intervals: Wilson 95% for rates; paired episode bootstrap for probe-minus-random differences.
+Intervals: Wilson 95% for rates; paired episode bootstrap for probe-minus-random differences and for
+each random-set condition minus its unguided references, with an exact McNemar test on the
+discordant episodes.
 
 Usage: .venv/bin/python scripts/figure4.py
 Writes outputs/figure4/.
@@ -23,6 +26,7 @@ matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+from scipy.stats import binomtest
 
 from lewm_probe import common as C
 from lewm_probe import dataset as D
@@ -69,6 +73,14 @@ def paired_diff(a, b, n_boot=2000, seed=0):
     return float((a - b).mean()), *np.percentile(boot, [2.5, 97.5])
 
 
+def mcnemar(a, b):
+    """Exact McNemar test for paired 0/1 outcomes: counts of episodes where only a or only b is 1."""
+    a, b = np.asarray(a, bool), np.asarray(b, bool)
+    only_a, only_b = int((a & ~b).sum()), int((~a & b).sum())
+    p = binomtest(only_a, only_a + only_b, 0.5).pvalue if only_a + only_b else 1.0
+    return only_a, only_b, float(p)
+
+
 def main():
     OUT.mkdir(parents=True, exist_ok=True)
     runs = load_runs()
@@ -105,6 +117,22 @@ def main():
     diffs = pd.DataFrame(diffs)
     diffs.to_csv(OUT / 'probe_vs_random.csv', index=False)
 
+    # paired differences on the random set: each condition minus the two unguided references
+    paired = []
+    for r in runs:
+        if r['set'] != 'random':
+            continue
+        for name, label in [('full', 'unguided'), ('fp32_reseed', 'unguided, new seed')]:
+            ref = dict(zip(('hazard', 'success'), reference(name, r['ids'])))
+            for key in ('hazard', 'success'):
+                m, lo, hi = paired_diff(r[key], ref[key])
+                only_c, only_ref, p = mcnemar(r[key], ref[key])
+                paired.append(dict(mode=r['mode'], strength=r['strength'], reference=label, metric=key, n=len(r['ids']),
+                                   condition=float(np.mean(r[key])), ref=float(np.mean(ref[key])), diff=m, ci_lo=lo,
+                                   ci_hi=hi, only_condition=only_c, only_reference=only_ref, mcnemar_p=p))
+    paired = pd.DataFrame(paired)
+    paired.to_csv(OUT / 'random_set_paired.csv', index=False)
+
     plot(table, refs, OUT / 'figure4.png')
     with pd.option_context('display.width', 200, 'display.max_columns', 20, 'display.precision', 3):
         print(table[['set', 'mode', 'strength', 'n', 'hazard', 'hazard_lo', 'hazard_hi', 'success', 'success_lo',
@@ -112,6 +140,9 @@ def main():
         if len(diffs):
             print('\nprobe minus random penalty, unsafe set (paired):')
             print(diffs.to_string(index=False))
+        if len(paired):
+            print('\nrandom set, condition minus unguided reference (paired):')
+            print(paired.to_string(index=False))
     print(f'wrote {OUT.relative_to(C.ROOT)}/')
 
 
@@ -189,7 +220,7 @@ def plot(table, refs, path):
     ax.set_yticks(y, labels, fontsize=8)
     ax.invert_yaxis()
     ax.set_xlim(0, 1.05)
-    ax.set_title('D. Side effects on 60 random episodes', fontsize=10)
+    ax.set_title(f'D. Side effects on {int(rnd["n"].iloc[0])} random episodes', fontsize=10)
     ax.legend(fontsize=7.5, loc='lower right')
 
     fig.suptitle('LeWM TwoRooms: turning the hazard monitor into a planning constraint (RQ4)', fontsize=11)
