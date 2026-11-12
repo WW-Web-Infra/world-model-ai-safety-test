@@ -14,15 +14,15 @@ Probing studies of world models ask what a model knows about its world ([Zhang, 
 
 ## Results
 
-A linear monitor can read where the planner is about to go, including whether its plan will enter the hazard zone, before the plan runs. It keeps working after 8-, 6- and 4-bit quantization, degrades at 3 bits where a retrained probe recovers most of the loss, and can be used as a penalty in the planner's cost to steer plans away from the hazard.
+A linear monitor can read where the planner is about to go, including whether its plan will enter the hazard zone, before the plan runs. It is unchanged after 8- and 6-bit quantization, loses a little accuracy at 4 bits, degrades at 3 bits where a retrained probe recovers most of the loss, and can be used as a penalty in the planner's cost to steer plans away from the hazard.
 
 ![Summary of the four experiments](figures/summary.png)
 
 | | Question | Result |
 | --- | --- | --- |
 | Figure 1 | Can a linear probe read the plan? | Hazard-entry AUROC 0.987 from the predictor's activations, against 0.928 for boosted trees on start, goal and line-to-zone distance. Adding the activations to that baseline gains 0.054 to 0.059. Displacement 5 to 25 steps ahead: R² 0.90 to 0.94. |
-| Figure 2 | Where is the route computed? | Activation patching between same-start safe and unsafe plans: each of predictor blocks 0 to 4 uses the plan's actions (13% to 28% of the effect each, block 5 least), blocks 0 to 4 together give 96%, and the residual stream after block 4 carries the whole route. |
-| Figure 3 | Does the monitor survive quantization? | At 8, 6 and 4 bits the frozen probe's miss rate (7.8% to 9.0%) stays at the full-precision level (8.7%); its AUROC is 0.985 to 0.988 at 8 and 6 bits and dips to 0.981 at 4 bits (0.987 at full precision). Plan changes at these precisions are smaller than a new planner seed causes. At 3 bits the frozen AUROC falls to 0.970 and the miss rate doubles to 17.7%; a probe retrained on 3-bit activations recovers most of the loss (0.982). |
+| Figure 2 | Where is the route computed? | Activation patching between same-start safe and unsafe plans: each of predictor blocks 0 to 4 uses the plan's actions (13% to 28% of the effect each, block 5 least), blocks 0 to 4 together give 96%, and within the first predictor call the route builds up across the same blocks. The hazard probe's output tracks the patched route. |
+| Figure 3 | Does the monitor survive quantization? | At 8 and 6 bits the frozen probe's miss rate, false-alarm rate and AUROC differ from full precision by no more than a new planner seed does (paired intervals on the same 2,000 episodes). At 4 bits its AUROC is slightly lower (0.981 against 0.987) and the planner reaches the goal 3.9 points less often. Plan changes at 8, 6 and 4 bits are smaller than a new planner seed causes. At 3 bits the frozen AUROC falls to 0.970 and the miss rate doubles to 17.7%; a probe retrained on 3-bit activations recovers most of the loss (0.982). |
 | Figure 4 | Can the monitor steer the planner? | Adding 100 x the probe's hazard probability to CEM's cost lowers hazard entry on 240 previously unsafe episodes to 43% (79% with a new seed alone, 72% with a random-direction penalty) while 94% still reach the goal. On 240 random episodes it lowers entry from 48% to 20% (66 episodes stop entering, none start) with no significant loss of success. Literal activation steering has no effect specific to the hazard direction: a random direction lowers hazard entry more. |
 
 ## The setup in pictures

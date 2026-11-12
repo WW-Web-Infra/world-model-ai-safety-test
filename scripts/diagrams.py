@@ -217,7 +217,7 @@ def figure2():
     g.path([(ra[-1]['r'], ra[-1]['cy']), (readouts['x'], ra[-1]['cy'])])
     effect = g.box(91, 4, 19, 10, 'Effect', 'fraction of the safe-vs-unsafe\ngap that the patch moves\n(0 = none, 1 = all)', 'probe', body_size=8.8)
     g.path([(readouts['cx'], readouts['y']), (effect['cx'], effect['t'])])
-    res = g.box(114, 7, 20, 32, 'Result', 'the plan is used across\nblocks b0-b4;\nno single block is enough\n\nthe route is fully carried\nby the output of b4\n\nthe frozen hazard probe\nmoves with the\npatched route', 'result', body_size=9)
+    res = g.box(114, 7, 20, 32, 'Result', 'the plan is used across\nblocks b0-b4;\nno single block is enough\n\nwithin the first call the\nroute builds up across\nthe same blocks\n\nthe frozen hazard probe\ntracks the\npatched route', 'result', body_size=9)
     g.path([(effect['r'], effect['cy']), (res['x'], effect['cy'])])
     g.legend(['data', 'planner', 'model', 'env', 'probe', 'compare', 'result'])
     g.save('experiment_figure2.png')
@@ -248,7 +248,7 @@ def figure3():
     meas = g.box(115, 19, 19, 25, 'Measured at\neach precision', 'behaviour vs fp32: success,\nhazard entry, path deviation,\noutcome flips\n\nmonitor vs what happened:\nAUROC, missed hazard plans\n(silent failures), false alarms\n\nretrained probe on the\nquantized activations', 'compare', dashed=True, body_size=8.4)
     g.path([(frozen['r'], 37), (meas['x'], 37)], color='#E65100')
     g.path([(outcome['r'], 23.5), (meas['x'], 23.5)], color='#2E7D32')
-    res = g.box(115, 3, 19, 13, 'Result', 'holds at 8, 6 and 4 bits:\nwithin planner-seed noise\n\n3-bit: misses double\n(8.7% -> 17.7%); a retrained\nprobe recovers (AUROC 0.98)', 'result', body_size=8.4)
+    res = g.box(115, 3, 19, 13, 'Result', '8 and 6 bits: within\nplanner-seed noise\n4 bits: AUROC -0.006\n\n3-bit: misses double\n(8.7% -> 17.7%); a retrained\nprobe recovers (AUROC 0.98)', 'result', body_size=8.4)
     g.legend(['model', 'planner', 'env', 'probe', 'compare', 'result'])
     g.save('experiment_figure3.png')
 
@@ -411,10 +411,10 @@ def summary_diagram():
     cards = [
         ('1. Can a linear monitor\nread the plan?', '0.987', 'hazard-entry AUROC\n\nvs 0.928 for boosted trees\non start + goal geometry;\nadding the activations to\ngeometry gains +0.05 to +0.06',
          'yes', 'Yes: the plan is readable\nbefore it runs'),
-        ('2. Where is the route\ncomputed?', 'blocks 0-4', 'where the plan is used\n\nswapping a safe plan\'s actions\ninto blocks 0-4 moves 96%\nof the route gap; block 4\'s\noutput carries all of it',
+        ('2. Where is the route\ncomputed?', 'blocks 0-4', 'where the plan is used\n\nswapping a safe plan\'s actions\ninto blocks 0-4 moves 96%\nof the route gap; the probe\ntracks the patched route',
          'yes', 'Across the first five of six\nblocks; the probe follows it'),
         ('3. Does it survive\nquantization?', '8.7% → 7.8-9.0%', 'missed hazard plans,\nfull precision → 8, 6, 4 bits\n\nat 3 bits: 17.7% missed,\n79% reach the goal;\nretraining recovers most',
-         'partly', 'Yes down to 4 bits;\nretrain the monitor at 3'),
+         'partly', 'Yes at 8 and 6 bits; slight\nloss at 4, retrain at 3'),
         ('4. Can it steer\nthe planner?', '79% → 43%', 'unsafe episodes still entering:\nnew seed → monitor in the cost\n\n94% still reach the goal;\nrandom penalty: 72%; pushing\nactivations: no specific effect',
          'yes', 'Yes, as a penalty in the\nplanner\'s cost'),
     ]
@@ -432,7 +432,7 @@ def summary_diagram():
         g.ax.text(x + w / 2, y0 + 3.5, verdict_text, ha='center', va='center', fontsize=9.6, fontweight='bold',
                   color=text, linespacing=1.25)
     g.box(1, 1.5, 132.5, 8.5, 'Takeaway: a cheap linear readout of the planner\'s imagined future flags hazardous plans before they run,\n'
-          'keeps working on a model compressed to 4 bits, and can steer the planner away. Re-check it after compressing; retrain it at 3 bits.',
+          'keeps working on a model compressed to 6 bits, and can steer the planner away. Re-check it after compressing; retrain it at 3 bits.',
           role='result', title_size=10.8)
     g.save('summary.png')
 
