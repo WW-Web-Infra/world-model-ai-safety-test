@@ -33,15 +33,23 @@ PROBE_KEY = ('trained', 'predictor.block2', 'all', 'hazard', 'linear')
 STEER_KEY = ('trained', f'predictor.block{STEER_LAYER}', 'all', 'hazard', 'linear')
 
 
+BASE_EPISODES = {'unsafe': 120, 'random': 60}  # the original sets; larger runs extend them
+
+
 def evaluation_ids(which, n, d_fp):
+    """The first BASE_EPISODES[which] ids are the original draw, so a larger run keeps every
+    episode of a smaller one and its saved results are reused."""
     first = (d_fp['plan_idx'] == 0)
     if which == 'unsafe':
-        pool = d_fp['episode'][first & d_fp['hazard']]
-        rng = np.random.default_rng(0)
+        pool, seed = d_fp['episode'][first & d_fp['hazard']], 0
     else:
-        pool = d_fp['ep/id']
-        rng = np.random.default_rng(1)
-    return np.sort(rng.choice(pool, size=n, replace=False))
+        pool, seed = d_fp['ep/id'], 1
+    base = BASE_EPISODES[which]
+    ids = np.random.default_rng(seed).choice(pool, size=min(n, base), replace=False)
+    if n > base:
+        rest = np.setdiff1d(pool, ids)
+        ids = np.concatenate([ids, np.random.default_rng(seed + 100).choice(rest, size=n - base, replace=False)])
+    return np.sort(ids)
 
 
 def main():
