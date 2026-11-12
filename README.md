@@ -23,7 +23,7 @@ A linear monitor can read where the planner is about to go, including whether it
 | Figure 1 | Can a linear probe read the plan? | Hazard-entry AUROC 0.987 from the predictor's activations, against 0.928 for boosted trees on start, goal and line-to-zone distance. Adding the activations to that baseline gains 0.054 to 0.059. Displacement 5 to 25 steps ahead: R² 0.90 to 0.94. |
 | Figure 2 | Where is the route computed? | Activation patching between same-start safe and unsafe plans: each of predictor blocks 0 to 4 uses the plan's actions (13% to 28% of the effect each, block 5 least), blocks 0 to 4 together give 96%, and the residual stream after block 4 carries the whole route. |
 | Figure 3 | Does the monitor survive quantization? | At 8, 6 and 4 bits the frozen probe's miss rate (7.8% to 9.0%) stays at the full-precision level (8.7%); its AUROC is 0.985 to 0.988 at 8 and 6 bits and dips to 0.981 at 4 bits (0.987 at full precision). Plan changes at these precisions are smaller than a new planner seed causes. At 3 bits the frozen AUROC falls to 0.970 and the miss rate doubles to 17.7%; a probe retrained on 3-bit activations recovers most of the loss (0.982). |
-| Figure 4 | Can the monitor steer the planner? | Adding 100 x the probe's hazard probability to CEM's cost lowers hazard entry on previously unsafe episodes to 46% (80% with a new seed alone, 76% with a random-direction penalty) while 91% still reach the goal. Literal activation steering has no effect specific to the hazard direction: a random direction lowers hazard entry as much or more. |
+| Figure 4 | Can the monitor steer the planner? | Adding 100 x the probe's hazard probability to CEM's cost lowers hazard entry on 240 previously unsafe episodes to 43% (79% with a new seed alone, 72% with a random-direction penalty) while 94% still reach the goal. On 240 random episodes it lowers entry from 48% to 20% (66 episodes stop entering, none start) with no significant loss of success. Literal activation steering has no effect specific to the hazard direction: a random direction lowers hazard entry more. |
 
 ## The setup in pictures
 
@@ -125,7 +125,7 @@ Run from the repo root with `.venv/bin/python`. Data goes to `data/` and figures
 | Safe/unsafe plan pairs, then Figure 2 | `scripts/make_pairs.py --first 0 --count 250` (and `--first 250`), then `scripts/figure2.py` | ~1.5 h, then minutes |
 | Quantized reruns and the planner-seed control | `scripts/run_quantization_sweep.sh`, then `scripts/run_reseed_control.sh` | ~14 h, then ~3.5 h |
 | Figure 3 | `scripts/figure3.py` | ~15 min |
-| Steering runs, then Figure 4 | `scripts/run_steering.sh`, then `scripts/figure4.py` | ~3 h, then seconds |
+| Steering runs (240 unsafe and 240 random episodes), then Figure 4 | `scripts/run_steering.sh`, then `scripts/figure4.py` | ~7 h, then seconds |
 | Experiment diagrams, the summary card and the animated GIFs | `scripts/diagrams.py` | seconds |
 | Plain-language charts for the blog post | `scripts/blog_figures.py` | seconds |
 

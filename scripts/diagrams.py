@@ -256,7 +256,7 @@ def figure3():
 def figure4():
     g = Diagram('Figure 4 experiment: can the monitor steer the planner away from the hazard?',
                 'The frozen hazard probe is added to the score CEM uses to pick a plan; outcomes are measured in the real environment')
-    ep = g.box(1, 26, 15, 13, 'Episodes', '120 whose full-precision\nfirst plan entered\nthe zone, and\n60 random ones\n(same seeds)', 'data')
+    ep = g.box(1, 26, 15, 13, 'Episodes', '240 whose full-precision\nfirst plan entered\nthe zone, and\n240 random ones\n(same seeds)', 'data')
     cand = g.box(21, 31, 19, 9, 'CEM: 300 candidate\nplans x 30 iterations', '', 'planner', title_size=10)
     roll = g.box(21, 18, 19, 9, 'Predictor rollout\nof each candidate', '', 'model', title_size=10)
     g.path([(ep['r'], 35.5), (cand['x'], 35.5)])
@@ -272,12 +272,12 @@ def figure4():
            label='resample around the best 30', label_at=(56, 44), fontsize=8.6)
     env = g.box(95, 26, 17, 11, 'Execute the\nchosen plan', 'TwoRooms: did it enter\nthe zone? reach the goal?', 'env', body_size=8.8)
     g.path([(score['r'], 31), (env['x'], 31)], color='#2E7D32')
-    g.box(71, 6, 41, 11, 'Compared against', 'unguided, and unguided with a new seed (80% still enter: the floor)\n'
+    g.box(71, 6, 41, 11, 'Compared against', 'unguided, and unguided with a new seed (79% still enter: the floor)\n'
           'a random-direction penalty of the same size\n'
           'a geometry penalty from the decoded imagined path (knows the zone)\n'
           'literal steering: subtract the probe direction from block 4 (and a random direction)',
           'compare', dashed=True, body_size=8.6)
-    res = g.box(116, 14, 18, 25, 'Result', 'monitor penalty, λ = 100:\n46% still enter\n(80% floor, 76% random)\n91% reach the goal\n\nrandom episodes: entry\n43% -> 23%, no loss\nof success\n\nliteral steering: no\ndirection-specific effect', 'result', body_size=8.4)
+    res = g.box(116, 14, 18, 25, 'Result', 'monitor penalty, λ = 100:\n43% still enter\n(79% floor, 72% random)\n94% reach the goal\n\nrandom episodes: entry\n48% -> 20%, success\nnot significantly lower\n\nliteral steering: no\ndirection-specific effect', 'result', body_size=8.4)
     g.path([(env['r'], 31.5), (res['x'], 31.5)])
     g.legend(['data', 'planner', 'model', 'env', 'probe', 'compare', 'result'])
     g.save('experiment_figure4.png')
@@ -415,7 +415,7 @@ def summary_diagram():
          'yes', 'Across the first five of six\nblocks; the probe follows it'),
         ('3. Does it survive\nquantization?', '8.7% → 7.8-9.0%', 'missed hazard plans,\nfull precision → 8, 6, 4 bits\n\nat 3 bits: 17.7% missed,\n79% reach the goal;\nretraining recovers most',
          'partly', 'Yes down to 4 bits;\nretrain the monitor at 3'),
-        ('4. Can it steer\nthe planner?', '80% → 46%', 'unsafe episodes still entering:\nnew seed → monitor in the cost\n\n91% still reach the goal;\nrandom penalty: 76%; pushing\nactivations: no specific effect',
+        ('4. Can it steer\nthe planner?', '79% → 43%', 'unsafe episodes still entering:\nnew seed → monitor in the cost\n\n94% still reach the goal;\nrandom penalty: 72%; pushing\nactivations: no specific effect',
          'yes', 'Yes, as a penalty in the\nplanner\'s cost'),
     ]
     w, gap, y0, h = 31.5, 2.0, 12.5, 30
